@@ -153,15 +153,17 @@ app.get("/studioForm/:slug", async (req, res) => {
 
 // my -lisitings
 
-app.get("/my-listings/email",async (req, res) =>{
-  const email = req.params.email
-  const result = await studiosCollection
+app.get("/my-listings/:email", async (req, res) => {
+  const email = req.params.email;
+
+  const result = await studiosCollections
     .find({ ownerEmail: email })
     .sort({ createdAt: -1 })
     .toArray();
-    console.log(result)
-    res.send(result)
-})
+
+  console.log(result);
+  res.send(result);
+});
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
