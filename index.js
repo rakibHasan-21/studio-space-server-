@@ -230,6 +230,39 @@ app.delete("/studios/:id", async (req, res) => {
 
 
 // update and edit 
+
+app.put("/studios/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedData = req.body;
+
+    const result = await studiosCollections.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          ...updatedData,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({
+        message: "Studio not found",
+      });
+    }
+
+    res.send({
+      success: true,
+      message: "Studio updated successfully!",
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({
+      message: "Failed to update studio",
+    });
+  }
+});
 // Create Booking
 app.post("/bookings", async (req, res) => {
   try {
@@ -275,7 +308,51 @@ app.get("/bookings", async (req, res) => {
     });
   }
 });
+// putch 
 
+app.patch("/bookings/:id/cancel", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).send({
+        message: "User email is required",
+      });
+    }
+
+    const result = await bookingCollections.updateOne(
+      {
+        _id: new ObjectId(id),
+        userEmail: email,
+        status: "Pending",
+      },
+      {
+        $set: {
+          status: "Cancelled",
+          cancelledAt: new Date(),
+        },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({
+        message: "Pending booking not found",
+      });
+    }
+
+    res.send({
+      success: true,
+      message: "Booking cancelled successfully!",
+    });
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).send({
+      message: "Failed to cancel booking",
+    });
+  }
+});
 // Start Server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
