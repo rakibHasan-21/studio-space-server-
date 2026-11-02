@@ -7,7 +7,14 @@ import cors from "cors";
 const app = express();
 const port = 5000;
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
 app.use(express.json());
 
 // MongoDB Connection
@@ -18,9 +25,7 @@ const client = new MongoClient(
 async function ConnectToMongoDB() {
   try {
     await client.connect();
-
     console.log("Successfully connected to MongoDB!");
-
     return client;
   } catch (error) {
     console.log("MongoDB Connection Error:", error);
@@ -45,11 +50,9 @@ app.get("/", (req, res) => {
 app.get("/featured-studios", async (req, res) => {
   try {
     const result = await featuredCollection.find().toArray();
-
     res.send(result);
   } catch (error) {
     console.log(error);
-
     res.status(500).send({
       message: "Failed to fetch featured studios",
     });
@@ -60,25 +63,15 @@ app.get("/featured-studios", async (req, res) => {
 app.get("/studios", async (req, res) => {
   try {
     const { category, ownerEmail } = req.query;
-
     const filter = {};
 
-    if (category) {
-      filter.category = category;
-    }
+    if (category) filter.category = category;
+    if (ownerEmail) filter.ownerEmail = ownerEmail;
 
-    if (ownerEmail) {
-      filter.ownerEmail = ownerEmail;
-    }
-
-    const result = await studiosCollections
-      .find(filter)
-      .toArray();
-
+    const result = await studiosCollections.find(filter).toArray();
     res.send(result);
   } catch (error) {
     console.log(error);
-
     res.status(500).send({
       message: "Failed to fetch studios",
     });
@@ -98,14 +91,10 @@ app.get("/studios/:slug", async (req, res) => {
 
     const id = new ObjectId(slug);
 
-    let result = await studiosCollections.findOne({
-      _id: id,
-    });
+    let result = await studiosCollections.findOne({ _id: id });
 
     if (!result) {
-      result = await featuredCollection.findOne({
-        _id: id,
-      });
+      result = await featuredCollection.findOne({ _id: id });
     }
 
     if (!result) {
@@ -117,7 +106,6 @@ app.get("/studios/:slug", async (req, res) => {
     res.send(result);
   } catch (error) {
     console.log(error);
-
     res.status(500).send({
       message: "Failed to fetch studio details",
     });
@@ -128,12 +116,6 @@ app.get("/studios/:slug", async (req, res) => {
 app.post("/studioForm", async (req, res) => {
   try {
     const studioData = req.body;
-
-    if (!studioData.ownerEmail) {
-      return res.status(400).send({
-        message: "Owner email is required",
-      });
-    }
 
     const result = await studiosCollections.insertOne({
       ...studioData,
@@ -147,7 +129,6 @@ app.post("/studioForm", async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-
     res.status(500).send({
       message: "Failed to add studio!",
     });
@@ -158,18 +139,16 @@ app.post("/studioForm", async (req, res) => {
 app.get("/studioForm", async (req, res) => {
   try {
     const result = await studiosCollections.find().toArray();
-
     res.status(200).send(result);
   } catch (error) {
     console.log(error);
-
     res.status(500).send({
       message: "Failed to fetch studios!",
     });
   }
 });
 
-// My Listings - User Owned Studios
+// My Listings
 app.get("/my-listings", async (req, res) => {
   try {
     const { email } = req.query;
@@ -187,7 +166,6 @@ app.get("/my-listings", async (req, res) => {
     res.send(result);
   } catch (error) {
     console.log(error);
-
     res.status(500).send({
       message: "Failed to fetch listings",
     });
@@ -221,20 +199,23 @@ app.delete("/studios/:id", async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-
     res.status(500).send({
       message: "Failed to delete studio",
     });
   }
 });
 
-
-// update and edit 
-
+// Update and Edit Studio
 app.put("/studios/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const updatedData = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid Studio ID",
+      });
+    }
 
     const result = await studiosCollections.updateOne(
       { _id: new ObjectId(id) },
@@ -263,6 +244,7 @@ app.put("/studios/:id", async (req, res) => {
     });
   }
 });
+
 // Create Booking
 app.post("/bookings", async (req, res) => {
   try {
@@ -276,13 +258,14 @@ app.post("/bookings", async (req, res) => {
 
     res.status(201).send({
       success: true,
-      message: "Booking successful",
+      message: "Booking successful!",
       insertedId: result.insertedId,
     });
   } catch (error) {
     console.log(error);
 
     res.status(500).send({
+      success: false,
       message: "Failed to create booking",
     });
   }
@@ -292,24 +275,19 @@ app.post("/bookings", async (req, res) => {
 app.get("/bookings", async (req, res) => {
   try {
     const { email } = req.query;
-
     const filter = email ? { userEmail: email } : {};
 
-    const result = await bookingsCollection
-      .find(filter)
-      .toArray();
-
+    const result = await bookingsCollection.find(filter).toArray();
     res.send(result);
   } catch (error) {
     console.log(error);
-
     res.status(500).send({
       message: "Failed to fetch bookings",
     });
   }
 });
-// putch 
 
+// Cancel Booking
 app.patch("/bookings/:id/cancel", async (req, res) => {
   try {
     const { id } = req.params;
@@ -321,7 +299,13 @@ app.patch("/bookings/:id/cancel", async (req, res) => {
       });
     }
 
-    const result = await bookingCollections.updateOne(
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid booking ID",
+      });
+    }
+
+    const result = await bookingsCollection.updateOne(
       {
         _id: new ObjectId(id),
         userEmail: email,
@@ -347,12 +331,12 @@ app.patch("/bookings/:id/cancel", async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-
     res.status(500).send({
       message: "Failed to cancel booking",
     });
   }
 });
+
 // Start Server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
