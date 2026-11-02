@@ -9,22 +9,6 @@ app.use(cors());
 app.use(express.json());
 
 
-
-// Internal API protection
-const verifyInternalApi = (req, res, next) => {
-  if (
-    req.headers["x-internal-api-key"] !==
-    process.env.INTERNAL_API_KEY
-  ) {
-    return res.status(401).send({
-      message: "Unauthorized access",
-    });
-  }
-
-  next();
-};
-
-
 const client = new MongoClient(
   `mongodb://${process.env.MONGODB_URI}:${process.env.MONGODB_PASS}@ac-j4kujpk-shard-00-00.borlllh.mongodb.net:27017,ac-j4kujpk-shard-00-01.borlllh.mongodb.net:27017,ac-j4kujpk-shard-00-02.borlllh.mongodb.net:27017/?ssl=true&replicaSet=atlas-85iobn-shard-0&authSource=admin`,
 );
@@ -44,6 +28,7 @@ const mongodb = await ConnectToMongoDB();
 const db = mongodb.db("Featured-Studios-Section");
 const featuredCollection = db.collection("Featured");
 const studiosCollections = db.collection("Studios");
+const bookingsCollection = db.collection('booking')
 
 // console.log(featuredCollection)
 
@@ -152,74 +137,77 @@ app.get("/studioForm", async (req, res) => {
   }
 });
 
-app.get("/studioForm/:slug", async (req, res) => {
+// app.get("/studioForm/:slug", async (req, res) => {
+//   try {
+//     const { slug } = req.params;
+//     const results = await studiosCollections.findOne({
+//       _id: new ObjectId(slug),
+//     });
+//     res.status(200).send(results);
+//   } catch (error) {
+//     console.log(error);
+//     res.status(500).send({
+//       message: "Failed to fetch studio details",
+//     });
+//   }
+// });
+
+
+// bookingmodal
+
+app.post("/bookings", async (req, res) => {
   try {
-    const { slug } = req.params;
-    const results = await studiosCollections.findOne({
-      _id: new ObjectId(slug),
+    const bookingData = req.body;
+
+    const result = await bookingsCollection.insertOne({
+      ...bookingData,
+      bookingDate: bookingData.bookingDate,
+      status: "Pending",
+      createdAt: new Date(),
     });
-    res.status(200).send(results);
+    res.status(201).send({
+      success: true,
+      message: "Booking successful",
+      insertedId: result.insertedId,
+    });
   } catch (error) {
-    console.log(error);
     res.status(500).send({
-      message: "Failed to fetch studio details",
+      message: "Failed to create booking",
     });
   }
 });
 
-
-// my -lisitings
-
-app.get("/my-listings/:email",verifyInternalApi, async (req, res) => {
-  const email = req.params.email;
-
-  const result = await studiosCollections
-    .find({ ownerEmail: email })
-    .sort({ createdAt: -1 })
-    .toArray();
-
-  console.log(result);
-  res.send(result);
-});
-// delete
-
-app.delete("/studios/:id", verifyInternalApi, async (req, res) => {
+app.get("/bookings", async (req, res) => {
   try {
-    const { id } = req.params;
-    const { ownerEmail } = req.body;
+    const result = await bookingsCollection
+      .find()
+      .toArray();
 
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send({
-        message: "Invalid studio ID",
-      });
-    }
-
-    if (!ownerEmail) {
-      return res.status(400).send({
-        message: "Owner email is required",
-      });
-    }
-
-    const result = await studiosCollections.deleteOne({
-      _id: new ObjectId(id),
-      ownerEmail: ownerEmail,
-    });
-
-    if (result.deletedCount === 0) {
-      return res.status(404).send({
-        message: "Studio not found or unauthorized",
-      });
-    }
-
-    res.send({
-      message: "Studio deleted successfully",
-    });
+    res.send(result);
   } catch (error) {
     res.status(500).send({
-      message: "Failed to delete studio",
+      message: "Failed to fetch bookings",
     });
   }
 });
+
+// Get logged-in user's studios
+app.get("/my-listings", async (req, res) => {
+  try {
+    const email = req.query.email;
+
+    const result = await studiosCollections
+      .find({ ownerEmail: email })
+      .toArray();
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({
+      message: "Failed to fetch listings",
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
