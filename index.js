@@ -3,6 +3,7 @@ import { MongoClient, ObjectId } from "mongodb";
 import "dotenv/config";
 import cors from "cors";
 
+
 const app = express();
 const port = 5000;
 
@@ -14,14 +15,19 @@ app.use(
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+     allowedHeaders: [
+      "Content-Type",
+      "x-internal-secret",
+      "x-user-email",
+      "x-user-name",
+    ],
   })
 );
 
 app.use(express.json());
-app.use(express.json());
 
-// MongoDB Connection
+
+
 const client = new MongoClient(
   `mongodb://${process.env.MONGODB_URI}:${process.env.MONGODB_PASS}@ac-j4kujpk-shard-00-00.borlllh.mongodb.net:27017,ac-j4kujpk-shard-00-01.borlllh.mongodb.net:27017,ac-j4kujpk-shard-00-02.borlllh.mongodb.net:27017/?ssl=true&replicaSet=atlas-85iobn-shard-0&authSource=admin`,
 );
@@ -116,7 +122,6 @@ app.get("/studios/:slug", async (req, res) => {
   }
 });
 
-// Add New Studio
 app.post("/studioForm", async (req, res) => {
   try {
     const studioData = req.body;
@@ -132,27 +137,29 @@ app.post("/studioForm", async (req, res) => {
       insertedId: result.insertedId,
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
+
     res.status(500).send({
       message: "Failed to add studio!",
     });
   }
 });
 
-// Get All Studios from Studio Form
+
 app.get("/studioForm", async (req, res) => {
   try {
     const result = await studiosCollections.find().toArray();
+
     res.status(200).send(result);
   } catch (error) {
     console.log(error);
+
     res.status(500).send({
       message: "Failed to fetch studios!",
     });
   }
 });
 
-// My Listings
 app.get("/my-listings", async (req, res) => {
   try {
     const { email } = req.query;
@@ -169,14 +176,20 @@ app.get("/my-listings", async (req, res) => {
 
     res.send(result);
   } catch (error) {
-    console.log(error);
+    console.error(error);
+
     res.status(500).send({
       message: "Failed to fetch listings",
     });
   }
-});
+})
 
-// Delete Studio
+
+
+/**
+ * Ai
+ */
+
 app.delete("/studios/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -202,14 +215,15 @@ app.delete("/studios/:id", async (req, res) => {
       message: "Studio deleted successfully",
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
+
     res.status(500).send({
       message: "Failed to delete studio",
     });
   }
 });
 
-// Update and Edit Studio
+
 app.put("/studios/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -221,6 +235,8 @@ app.put("/studios/:id", async (req, res) => {
       });
     }
 
+    delete updatedData._id;
+
     const result = await studiosCollections.updateOne(
       { _id: new ObjectId(id) },
       {
@@ -228,7 +244,7 @@ app.put("/studios/:id", async (req, res) => {
           ...updatedData,
           updatedAt: new Date(),
         },
-      },
+      }
     );
 
     if (result.matchedCount === 0) {
@@ -242,14 +258,15 @@ app.put("/studios/:id", async (req, res) => {
       message: "Studio updated successfully!",
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
+
     res.status(500).send({
       message: "Failed to update studio",
     });
   }
 });
 
-// Create Booking
+
 app.post("/bookings", async (req, res) => {
   try {
     const bookingData = req.body;
@@ -257,7 +274,7 @@ app.post("/bookings", async (req, res) => {
     const result = await bookingsCollection.insertOne({
       ...bookingData,
       status: "Pending",
-      createdAt: new Date(),
+      bookingDate: new Date(),
     });
 
     res.status(201).send({
@@ -266,25 +283,34 @@ app.post("/bookings", async (req, res) => {
       insertedId: result.insertedId,
     });
   } catch (error) {
-    console.log(error);
+    console.error("Booking Error:", error);
 
     res.status(500).send({
-      success: false,
       message: "Failed to create booking",
     });
   }
 });
 
+
 // Get Bookings
 app.get("/bookings", async (req, res) => {
   try {
     const { email } = req.query;
-    const filter = email ? { userEmail: email } : {};
 
-    const result = await bookingsCollection.find(filter).toArray();
+    if (!email) {
+      return res.status(400).send({
+        message: "Email is required",
+      });
+    }
+    const result = await bookingsCollection
+      .find({ userEmail: email })
+      .sort({ bookingDate: -1 })
+      .toArray();
+
     res.send(result);
   } catch (error) {
-    console.log(error);
+    console.error(error);
+
     res.status(500).send({
       message: "Failed to fetch bookings",
     });
@@ -295,13 +321,6 @@ app.get("/bookings", async (req, res) => {
 app.patch("/bookings/:id/cancel", async (req, res) => {
   try {
     const { id } = req.params;
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).send({
-        message: "User email is required",
-      });
-    }
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).send({
@@ -312,7 +331,6 @@ app.patch("/bookings/:id/cancel", async (req, res) => {
     const result = await bookingsCollection.updateOne(
       {
         _id: new ObjectId(id),
-        userEmail: email,
         status: "Pending",
       },
       {
@@ -320,7 +338,7 @@ app.patch("/bookings/:id/cancel", async (req, res) => {
           status: "Cancelled",
           cancelledAt: new Date(),
         },
-      },
+      }
     );
 
     if (result.matchedCount === 0) {
@@ -334,7 +352,8 @@ app.patch("/bookings/:id/cancel", async (req, res) => {
       message: "Booking cancelled successfully!",
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
+
     res.status(500).send({
       message: "Failed to cancel booking",
     });
@@ -348,3 +367,4 @@ app.listen(port, () => {
 
 
 export default app;
+
