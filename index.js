@@ -10,6 +10,7 @@ const port = 5000;
 app.use(cors({
   origin: [
     "http://localhost:3000",
+    "https://studio-space-client-lake.vercel.app",
     process.env.CLIENT_URI,
   ],
   credentials: true,
@@ -17,9 +18,8 @@ app.use(cors({
     "Content-Type",
     "Authorization",
   ],
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 }));
-
 app.use(express.json());
 
 const client = new MongoClient(
@@ -62,7 +62,7 @@ const verifyApi = async(req, res, next) => {
       message: "Unauthorized access",
     });
   }
-  const JWKS = createRemoteJWKSet( new URL("http://localhost:3000/api/auth/jwks"))
+  const JWKS = createRemoteJWKSet( new URL("https://studio-space-client-lake.vercel.app/api/auth/jwks"))
   const {payload} = await jwtVerify(token, JWKS,)
   console.log(payload)
 
